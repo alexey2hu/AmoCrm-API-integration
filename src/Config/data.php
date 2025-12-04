@@ -6,7 +6,9 @@ return [
     'client_secret' => '5STZ4APeOTE2CI9hofYEu9mwrgdDynVPF7aLkqKIIwYxht7ARX3xCLJoOrAxYgXs',
     'code' => 'def50200bb32d40ac2f3b73c873b74d60f426cdf4a89bee5987a82578ec7c84a9e4a5c1d77db0f0f51adeef701e010a79b947bf1e5be387f469cabf065089e6cca7753ef321a1cedc2ada913cabb28ed322495bbc3b090ec6ffcd76a1ffd9e43e212d383e54973454ac5ce519f5d74064bd4a1986385aa970103b7b427bcb505a982b60f858402f40ac9c1c01b11e8cd0fd6a8ea91c8f874f495969b6639a583e94c5cf301373d886922111991691fd1b13d27b9022a1c6f441d44e9d23b78d02a23216497a764680ee0288f5a4625def67b350afab6aeb6e3acbce2b329e787607021943ce662a70d833c35c306bf4372c80ba3c0b3a7957990ce16a15de88f4b5d8da99a8134e37682370c048af532496cec239d50032e062003271ddf2d54e262952eaa9b4babaddca3367900ccf17964023168c30568a8fd5af6f27eb3bcc6cb264f10960ce0ccdfd79a73a66e5524f233a8088635cb0fa803451ab800db3d47b9ab4b6e2739d11dde9ba38e97eca7ff2488b3e21de61bdc6cd93f34bc98c1d2d89b0c87ccfeea9ca7e5e4ddaff79f9ebc15636e26640c1813c7a52d24822e5255ebbcd71a153eb8f4def0a9b46f7a8e1b5fc7ae25caf52f72c1c6ddb9e5272c4673c16735680f2b00424c726ead7967a1ffd9c3d48db03d0cd23202dee6965cdf5431096b23ad215e4edd9d129773fbb1cc',
     'redirect_url' => 'https://testalexeybyrakov.amocrm.ru',
-    'source_stage_id' => 142,   // ID стадии, ОТКУДА брать сделки
-    'target_stage_id' => 143,   // ID стадии, КУДА перемещать
-    'pipeline_id' => 12345      // ID воронки
+    
+    'pipeline_id' => 10362662,          // ID воронки "Воронка"
+    'application_stage_id' => 81971238, // ID стадии "Заявка"
+    'waiting_stage_id' => 81971194,     // ID стадии "Ожидание клиента"
+    'budget_threshold' => 5000          // Порог бюджета
 ];

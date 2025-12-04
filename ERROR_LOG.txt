@@ -1,3 +1,0 @@
-Ошибка: Bad request
-Код ошибки: 400https://testalexeybyrakov.amocrm.ru/api/v4/leads?limit=10&with=contacts&filter=Array&page=12025-12-04 13:50:48 - Ошибка: Undescribed error
-Код ошибки: 0 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads

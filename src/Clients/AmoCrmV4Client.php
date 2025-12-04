@@ -247,6 +247,15 @@ class AmoCrmV4Client
         return $this->POSTRequestApi($entity, $data, 'PATCH');
     }
 
+    function DELETE($entity, $id = null) {
+        $service = $entity;
+        if ($id !== null) {
+            $service .= '/' . $id;
+        }
+        $url = 'https://' . $this->subDomain . '.amocrm.ru/api/v4/' . $service;
+        return json_decode($this->CurlRequest($url, 'DELETE'), true);
+    }
+
     function Error($e){
         $logMessage = date('Y-m-d H:i:s') . ' - ' . $e . PHP_EOL;
         file_put_contents("ERROR_LOG.txt", $logMessage, FILE_APPEND);
