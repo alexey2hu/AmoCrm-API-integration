@@ -67,8 +67,8 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_HEADER, false);
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($curl,CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // Потом заменить на 1, 2
+        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0); // Потом заменить на 1, 2
         $out = curl_exec($curl); //Инициируем запрос к API и сохраняем ответ в переменную
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
@@ -133,8 +133,8 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST,$method);
         curl_setopt($curl,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl,CURLOPT_HEADER, false);
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // Потом заменить на 1, 2
+        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0); // Потом заменить на 1, 2
         $out = curl_exec($curl); //Инициируем запрос к API и сохраняем ответ в переменную
         //var_dump($out);
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
