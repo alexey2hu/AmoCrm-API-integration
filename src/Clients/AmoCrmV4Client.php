@@ -1,5 +1,10 @@
 <?php
 
+namespace App\Clients;
+
+use Exception;
+use ErrorException;
+
 class AmoCrmV4Client
 {
     var $curl = null;
@@ -23,29 +28,28 @@ class AmoCrmV4Client
         $this->redirect_uri = $redirect_uri;
         
         if(file_exists($this->token_file)) {
-            $expires_in = json_decode(file_get_contents("TOKEN.txt"))->{'expires_in'};
-            if($expires_in < time()) {
-                $this->access_token = json_decode(file_get_contents("TOKEN.txt"))->{'access_token'};
+            $tokenData = json_decode(file_get_contents("TOKEN.txt"), true);
+            if($tokenData['expires_in'] < time()) {
                 $this->GetToken(true);
+            } else {
+                $this->access_token = $tokenData['access_token'];
             }
-            else
-                $this->access_token = json_decode(file_get_contents("TOKEN.txt"))->{'access_token'};
-        }
-        else
+        } else {
             $this->GetToken();
+        }
     }
 
     function GetToken($refresh = false){
-        $link = 'https://' . $this->subDomain . '.amocrm.ru/oauth2/access_token'; //Формируем URL для запроса
+        $link = 'https://' . $this->subDomain . '.amocrm.ru/oauth2/access_token';
 
         /** Соберем данные для запроса */
-        if($refresh)
-        {
+        if($refresh) {
+            $tokenData = json_decode(file_get_contents("TOKEN.txt"), true);
             $data = [
                 'client_id' => $this->client_id,
                 'client_secret' => $this->client_secret,
                 'grant_type' => 'refresh_token',
-                'refresh_token' => json_decode(file_get_contents("TOKEN.txt"))->{'refresh_token'},
+                'refresh_token' => $tokenData['refresh_token'],
                 'redirect_uri' => $this->redirect_uri
             ];
         } else {
@@ -58,8 +62,7 @@ class AmoCrmV4Client
             ];
         }
 
-        $curl = curl_init(); //Сохраняем дескриптор сеанса cURL
-        /** Устанавливаем необходимые опции для сеанса cURL  */
+        $curl = curl_init();
         curl_setopt($curl,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl,CURLOPT_USERAGENT,'amoCRM-oAuth-client/1.0');
         curl_setopt($curl,CURLOPT_URL, $link);
@@ -67,12 +70,12 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_HEADER, false);
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($curl,CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // Потом заменить на 1, 2
-        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0); // Потом заменить на 1, 2
-        $out = curl_exec($curl); //Инициируем запрос к API и сохраняем ответ в переменную
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
+        $out = curl_exec($curl);
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
-        /** Теперь мы можем обработать ответ, полученный от сервера. Это пример. Вы можете обработать данные своим способом. */
+        
         $code = (int)$code;
         $errors = [
             400 => 'Bad request',
@@ -84,32 +87,24 @@ class AmoCrmV4Client
             503 => 'Service unavailable',
         ];
 
-        try
-        {
-            /** Если код ответа не успешный - возвращаем сообщение об ошибке  */
+        try {
             if ($code < 200 || $code > 204) {
                 throw new Exception(isset($errors[$code]) ? $errors[$code] : 'Undefined error', $code);
             }
-        }
-        catch(Exception $e)
-        {
+        } catch(Exception $e) {
             echo $out;
             die('Ошибка: ' . $e->getMessage() . PHP_EOL . 'Код ошибки: ' . $e->getCode());
         }
 
-        /**
-         * Данные получаем в формате JSON, поэтому, для получения читаемых данных,
-         * нам придётся перевести ответ в формат, понятный PHP
-         */
         $response = json_decode($out, true);
 
         $this->access_token = $response['access_token'];
 
         $token = [
-            'access_token' => $response['access_token'], //Access токен
-            'refresh_token' => $response['refresh_token'], //Refresh токен
-            'token_type' => $response['token_type'], //Тип токена
-            'expires_in' => time() + $response['expires_in'] //Через сколько действие токена истекает
+            'access_token' => $response['access_token'],
+            'refresh_token' => $response['refresh_token'],
+            'token_type' => $response['token_type'],
+            'expires_in' => time() + $response['expires_in']
         ];
 
         file_put_contents("TOKEN.txt", json_encode($token));
@@ -117,7 +112,6 @@ class AmoCrmV4Client
 
     function CurlRequest($link, $method, $PostFields = [])
     {
-        /** Формируем заголовки */
         $headers = [
             'Authorization: Bearer ' . $this->access_token,
             'Content-Type: application/json'
@@ -133,16 +127,14 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST,$method);
         curl_setopt($curl,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl,CURLOPT_HEADER, false);
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // Потом заменить на 1, 2
-        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0); // Потом заменить на 1, 2
-        $out = curl_exec($curl); //Инициируем запрос к API и сохраняем ответ в переменную
-        //var_dump($out);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
+        $out = curl_exec($curl);
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
         
-        /* Теперь мы можем обработать ответ, полученный от сервера. Это пример. Вы можете обработать данные своим способом. */
         $code = (int) $code;
-        $errors = array(
+        $errors = [
             301 => 'Moved permanently',
             400 => 'Bad request',
             401 => 'Unauthorized',
@@ -151,19 +143,15 @@ class AmoCrmV4Client
             500 => 'Internal server error',
             502 => 'Bad gateway',
             503 => 'Service unavailable',
-        );
+        ];
 
-        try
-        {
-            #Если код ответа не равен 200 или 204 - возвращаем сообщение об ошибке
+        try {
             if ($code != 200 && $code != 204) {
                 throw new Exception(isset($errors[$code]) ? $errors[$code] : 'Undescribed error', $code);
             }
-
         } catch (Exception $E) {
-            $this->Error('Ошибка: ' . $E->getMessage() . PHP_EOL . 'Код ошибки: ' . $E->getCode() . $link);
+            $this->Error('Ошибка: ' . $E->getMessage() . PHP_EOL . 'Код ошибки: ' . $E->getCode() . ' URL: ' . $link);
         }
-
 
         return $out;
     }
@@ -172,15 +160,15 @@ class AmoCrmV4Client
     {
         $result = '';
         try {
-            $url = "";
-            if ($params !== []) {
-                $params = ToGetArray($params);
-                $url = 'https://' . $this->subDomain . '.amocrm.ru/api/v4/' . $service . '?' . $params;
-            } else
+            if (!empty($params)) {
+                // Используем http_build_query для корректного формирования URL
+                $queryString = http_build_query($params);
+                $url = 'https://' . $this->subDomain . '.amocrm.ru/api/v4/' . $service . '?' . $queryString;
+            } else {
                 $url = 'https://' . $this->subDomain . '.amocrm.ru/api/v4/' . $service;
+            }
 
             $result = json_decode($this->CurlRequest($url, 'GET'), true);
-
             usleep(250000);
 
         } catch (ErrorException $e) {
@@ -195,11 +183,8 @@ class AmoCrmV4Client
         $result = '';
         try {
             $url = 'https://' . $this->subDomain . '.amocrm.ru/api/v4/' . $service;
-
             $result = json_decode($this->CurlRequest($url, $method, $params), true);
-
             usleep(250000);
-
         } catch (ErrorException $e) {
             $this->Error($e);
         }
@@ -224,37 +209,47 @@ class AmoCrmV4Client
             'with' => $with
         ];
 
+        if ($custom_params !== null) {
+            $params = array_merge($params, $custom_params);
+        }
+
         do {
-            if ($custom_params != null){
-                foreach ($custom_params as $key => $param){
-                    $params[$key] = $param;
-                }
-            }
             $params['page'] = $i;
-            $array_temp = $this->GETRequestApi($entity, $params)['_embedded'][$entity];
-            if ($array_temp == null)
+            $response = $this->GETRequestApi($entity, $params);
+            $array_temp = $response['_embedded'][$entity] ?? null;
+            
+            if ($array_temp === null) {
                 break;
+            }
+            
             foreach ($array_temp as $elem) {
-                array_push($array, $elem);
+                $array[] = $elem;
             }
             $i++;
-        } while ($array_temp != null);
+        } while (!empty($array_temp));
 
         return $array;
     }
 
+    function GET($entity, $id = null, $params = []) {
+        $service = $entity;
+        if ($id !== null) {
+            $service .= '/' . $id;
+        }
+        return $this->GETRequestApi($service, $params);
+    }
+
+    function POST($entity, $data = []) {
+        return $this->POSTRequestApi($entity, $data, 'POST');
+    }
+
+    function PATCH($entity, $data = []) {
+        return $this->POSTRequestApi($entity, $data, 'PATCH');
+    }
+
     function Error($e){
-        file_put_contents("ERROR_LOG.txt", $e);
+        $logMessage = date('Y-m-d H:i:s') . ' - ' . $e . PHP_EOL;
+        file_put_contents("ERROR_LOG.txt", $logMessage, FILE_APPEND);
+        error_log($logMessage);
     }
-}
-
-function ToGetArray($array){
-    $result = "";
-
-    foreach ($array as $key => $value)
-    {
-        $result .= $key . "=" . $value . '&';
-    }
-
-    return substr($result,0,-1);
 }
