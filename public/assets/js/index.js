@@ -1,8 +1,11 @@
 // js/index.js
 
-let isProcessing = false
+let isProcessing = false // Флаг для отслеживания выполнения операции
 
-// Функция для выполнения действия
+/**
+ * Выполняет указанное действие через API
+ * @param {string} action - Название действия (move-leads или copy-leads)
+ */
 function executeAction(action) {
 	// Проверка на уже выполняющийся запрос
 	if (isProcessing) {
@@ -202,7 +205,12 @@ function executeAction(action) {
 	xhr.send()
 }
 
-// Вывод деталей данных
+/**
+ * Выводит детали данных в консоль в зависимости от типа действия
+ * @param {object} data - Данные ответа от API
+ * @param {string} action - Название действия
+ * @param {string} timestamp - Временная метка
+ */
 function outputDataDetails(data, action, timestamp) {
 	let details = ''
 
@@ -227,7 +235,11 @@ function outputDataDetails(data, action, timestamp) {
 	}
 }
 
-// Вспомогательная функция для получения имени действия
+/**
+ * Получает читаемое имя действия
+ * @param {string} action - Техническое имя действия
+ * @returns {string} Читаемое имя действия
+ */
 function getActionName(action) {
 	const actionNames = {
 		'move-leads': 'Перемещение сделок',
@@ -237,7 +249,11 @@ function getActionName(action) {
 	return actionNames[action] || action
 }
 
-// Функция для добавления сообщения в консоль
+/**
+ * Добавляет сообщение в консоль вывода
+ * @param {string} type - Тип сообщения (info, success, warning, error)
+ * @param {string} message - Текст сообщения
+ */
 function addConsoleMessage(type, message) {
 	const consoleOutput = document.getElementById('console-output')
 	const messageDiv = document.createElement('div')
@@ -246,7 +262,9 @@ function addConsoleMessage(type, message) {
 	consoleOutput.appendChild(messageDiv)
 }
 
-// Функция очистки консоли
+/**
+ * Очищает содержимое консоли вывода
+ */
 function clearConsole() {
 	const consoleOutput = document.getElementById('console-output')
 	consoleOutput.innerHTML = ''
@@ -255,7 +273,9 @@ function clearConsole() {
 	addConsoleMessage('info', `${timestamp} Консоль очищена.`)
 }
 
-// Функция копирования содержимого консоли
+/**
+ * Копирует содержимое консоли в буфер обмена
+ */
 function copyConsole() {
 	const consoleOutput = document.getElementById('console-output')
 	const text = consoleOutput.innerText
@@ -279,7 +299,10 @@ function copyConsole() {
 		})
 }
 
-// Инициализация при загрузке страницы
+/**
+ * Инициализация при загрузке страницы
+ * Назначает обработчики событий для кнопок
+ */
 document.addEventListener('DOMContentLoaded', function () {
 	console.log('DOM загружен, инициализация...')
 

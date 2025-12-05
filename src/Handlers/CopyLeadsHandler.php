@@ -5,66 +5,72 @@ namespace App\Handlers;
 class CopyLeadsHandler extends BaseHandler
 {
     /**
-     * Основной метод обработки
+     * Основной метод обработки запроса на копирование сделок
+     * @return array Структурированный ответ с результатами операции
      */
     public function handle(): array
     {
         try {
-            // 1. Получаем параметры
+            // 1. Получаем параметры обработки из конфигурации
             $params = $this->getProcessingParameters();
             
-            // 2. Проверяем обязательные параметры
+            // 2. Проверяем обязательные параметры для работы
             $this->validateParameters($params);
             
-            // 3. Получаем сделки для копирования
+            // 3. Получаем сделки для копирования (с учетом бюджета)
             $leadsData = $this->getLeadsToCopy($params);
-            $leads = $leadsData['leads']; // Извлекаем сделки
-            $totalLeadsOnStage = $leadsData['total_leads_on_stage']; // Извлекаем общее количество
+            $leads = $leadsData['leads'];
+            $totalLeadsOnStage = $leadsData['total_leads_on_stage'];
             
+            // Если сделок для копирования не найдено
             if (empty($leads)) {
                 return $this->createResponse(false, 'Не найдено сделок для копирования', [
-                    'total_leads' => $totalLeadsOnStage, // Все сделки на этапе
-                    'filtered_leads' => 0, // Сделки с бюджетом = 4999
+                    'total_leads' => $totalLeadsOnStage,      // Все сделки на этапе "Клиент подтвердил"
+                    'filtered_leads' => 0,                    // Сделки с бюджетом = 4999
                     'copied_count' => 0,
                     'parameters' => $params
                 ]);
             }
             
-            // 4. Копируем найденные сделки
+            // 4. Копируем найденные сделки вместе с примечаниями и задачами
             $copyResults = $this->copyLeadsWithNotesAndTasks($leads, $params);
             
-            // 5. Формируем ответ
+            // 5. Формируем финальный ответ с результатами
             return $this->createResponse(true, 'Копирование завершено', [
-                'total_leads' => $totalLeadsOnStage, // Все сделки на этапе "Клиент подтвердил"
-                'filtered_leads' => count($leads), // Сделки с бюджетом = 4999
-                'total_leads_found' => count($leads), // Для обратной совместимости
+                'total_leads' => $totalLeadsOnStage,                // Все сделки на этапе "Клиент подтвердил"
+                'filtered_leads' => count($leads),                  // Сделки с бюджетом = 4999
+                'total_leads_found' => count($leads),               // Для обратной совместимости
                 'successfully_copied' => count($copyResults['success']),
                 'failed_to_copy' => count($copyResults['failed']),
-                'success_copies' => array_slice($copyResults['success'], 0, 5),
-                'failed_copies' => array_slice($copyResults['failed'], 0, 5),
+                'success_copies' => array_slice($copyResults['success'], 0, 5),    // Первые 5 успешных
+                'failed_copies' => array_slice($copyResults['failed'], 0, 5),      // Первые 5 ошибок
                 'parameters' => $params,
-                'pipeline_name' => $this->getPipelineName($params['pipeline_id'])
+                'pipeline_name' => $this->getPipelineName($params['pipeline_id'])  // Название воронки
             ]);
             
         } catch (\Exception $e) {
+            // Логируем ошибку и возвращаем сообщение пользователю
             error_log("CopyLeadsHandler error: " . $e->getMessage());
             return $this->createResponse(false, 'Ошибка обработки: ' . $e->getMessage());
         }
     }
     
     /**
-     * Проверяет обязательные параметры
+     * Проверяет обязательные параметры для работы обработчика
+     * @throws \RuntimeException если параметры невалидны
      */
     private function validateParameters(array $params): void
     {
         $required = ['client_confirmed_stage_id', 'waiting_stage_id'];
         
+        // Проверяем наличие обязательных полей
         foreach ($required as $field) {
             if (empty($params[$field])) {
                 throw new \RuntimeException("Не указан обязательный параметр: {$field}");
             }
         }
         
+        // Исходная и целевая стадии не должны совпадать
         if ($params['client_confirmed_stage_id'] == $params['waiting_stage_id']) {
             throw new \RuntimeException("ID исходной и целевой стадий не должны совпадать");
         }
@@ -72,73 +78,83 @@ class CopyLeadsHandler extends BaseHandler
     
     /**
      * Получает название воронки по ID
+     * @return string Название воронки или сообщение об ошибке
      */
     private function getPipelineName(int $pipelineId): string
-		{
-			try {
-					// В GET должен быть только endpoint, без ID в параметрах
-					$pipelines = $this->amoClient->GET('leads/pipelines');
-					
-					if (!empty($pipelines['_embedded']['pipelines'])) {
-							foreach ($pipelines['_embedded']['pipelines'] as $pipeline) {
-									if ($pipeline['id'] == $pipelineId) {
-											return $pipeline['name'];
-									}
-							}
-					}
-					
-					return 'Неизвестная воронка (ID: ' . $pipelineId . ')';
-			} catch (\Exception $e) {
-					return 'Не удалось получить название воронки: ' . $e->getMessage();
-			}
-		}
-    
-        /**
-         * Получает сделки для копирования
-         */
-        private function getLeadsToCopy(array $params): array
-        {
-            $queryParams = [
-                'limit' => $params['limit'],
-                'with' => 'contacts,custom_fields',
-                'filter[status_id][]' => (int)$params['client_confirmed_stage_id'],
-                'filter[pipeline_id][]' => (int)$params['pipeline_id']
-            ];
+    {
+        try {
+            // Получаем список всех воронок
+            $pipelines = $this->amoClient->GET('leads/pipelines');
             
-            $allLeads = $this->amoClient->GETAll('leads', $queryParams);
-            
-            $totalLeadsOnStage = 0;
-            $leadsToCopy = [];
-            
-            foreach ($allLeads as $lead) {
-                // Проверяем стадию и воронку
-                if (($lead['status_id'] ?? null) == $params['client_confirmed_stage_id'] 
-                    && ($lead['pipeline_id'] ?? null) == $params['pipeline_id']) {
-                    
-                    $totalLeadsOnStage++; // Считаем ВСЕ сделки на этапе "Клиент подтвердил"
-                    $budget = $this->extractBudgetFromLead($lead);
-                    
-                    // Проверяем бюджет на точное совпадение
-                    if (abs($budget - $params['copy_budget_value']) < 0.01) {
-                        $leadsToCopy[] = [
-                            'id' => $lead['id'],
-                            'name' => $lead['name'] ?? 'Без названия',
-                            'budget' => $budget,
-                            'original_data' => $lead
-                        ];
+            // Ищем воронку с нужным ID
+            if (!empty($pipelines['_embedded']['pipelines'])) {
+                foreach ($pipelines['_embedded']['pipelines'] as $pipeline) {
+                    if ($pipeline['id'] == $pipelineId) {
+                        return $pipeline['name'];
                     }
                 }
             }
             
-            // Возвращаем массив с обеими переменными
-            return [
-                'leads' => $leadsToCopy,
-                'total_leads_on_stage' => $totalLeadsOnStage
-            ];
+            return 'Неизвестная воронка (ID: ' . $pipelineId . ')';
+        } catch (\Exception $e) {
+            return 'Не удалось получить название воронки: ' . $e->getMessage();
         }
+    }
     
     /**
-     * Копирует сделки с примечаниями и задачами
+     * Получает сделки для копирования с фильтрацией по бюджету
+     * @return array [
+     *     'leads' => массив сделок для копирования,
+     *     'total_leads_on_stage' => общее количество сделок на этапе
+     * ]
+     */
+    private function getLeadsToCopy(array $params): array
+    {
+        $queryParams = [
+            'limit' => $params['limit'],
+            'with' => 'contacts,custom_fields',
+            'filter[status_id][]' => (int)$params['client_confirmed_stage_id'],
+            'filter[pipeline_id][]' => (int)$params['pipeline_id']
+        ];
+        
+        // Получаем все сделки с учетом фильтров
+        $allLeads = $this->amoClient->GETAll('leads', $queryParams);
+        
+        $totalLeadsOnStage = 0;
+        $leadsToCopy = [];
+        
+        foreach ($allLeads as $lead) {
+            // Проверяем стадию и воронку
+            if (($lead['status_id'] ?? null) == $params['client_confirmed_stage_id'] 
+                && ($lead['pipeline_id'] ?? null) == $params['pipeline_id']) {
+                
+                $totalLeadsOnStage++; // Считаем ВСЕ сделки на этапе "Клиент подтвердил"
+                $budget = $this->extractBudgetFromLead($lead);
+                
+                // Проверяем бюджет на точное совпадение с copy_budget_value
+                if (abs($budget - $params['copy_budget_value']) < 0.01) {
+                    $leadsToCopy[] = [
+                        'id' => $lead['id'],
+                        'name' => $lead['name'] ?? 'Без названия',
+                        'budget' => $budget,
+                        'original_data' => $lead
+                    ];
+                }
+            }
+        }
+        
+        return [
+            'leads' => $leadsToCopy,
+            'total_leads_on_stage' => $totalLeadsOnStage
+        ];
+    }
+    
+    /**
+     * Копирует сделки вместе с примечаниями и задачами
+     * @return array [
+     *     'success' => массив успешно скопированных сделок,
+     *     'failed' => массив неудачных попыток
+     * ]
      */
     private function copyLeadsWithNotesAndTasks(array $leads, array $params): array
     {
@@ -156,11 +172,11 @@ class CopyLeadsHandler extends BaseHandler
                     throw new \Exception('Не удалось создать копию сделки');
                 }
                 
-                // 2. Копируем примечания
+                // 2. Копируем примечания из оригинала
                 $notes = $this->getLeadNotes($lead['id']);
                 $copiedNotes = $this->copyNotesToNewLead($notes, $newLeadId);
                 
-                // 3. Копируем задачи
+                // 3. Копируем задачи из оригинала
                 $tasks = $this->getLeadTasks($lead['id']);
                 $copiedTasks = $this->copyTasksToNewLead($tasks, $newLeadId);
                 
@@ -178,13 +194,17 @@ class CopyLeadsHandler extends BaseHandler
                 ];
             }
             
-            usleep(500000); // 500ms пауза
+            usleep(500000); // 500ms пауза между запросами
         }
         
         return $result;
     }
     
-    private function getLeadNotes($leadId) {
+    /**
+     * Получает примечания сделки
+     */
+    private function getLeadNotes($leadId): array
+    {
         try {
             $notes = $this->amoClient->GETAll("leads/{$leadId}/notes");
             return $notes ?: [];
@@ -194,7 +214,11 @@ class CopyLeadsHandler extends BaseHandler
         }
     }
     
-    private function getLeadTasks($leadId) {
+    /**
+     * Получает задачи сделки
+     */
+    private function getLeadTasks($leadId): array
+    {
         try {
             $tasks = $this->amoClient->GETAll("leads/{$leadId}/tasks");
             return $tasks ?: [];
@@ -204,7 +228,12 @@ class CopyLeadsHandler extends BaseHandler
         }
     }
     
-    private function createLeadCopy($originalLead, $targetStageId) {
+    /**
+     * Создает копию сделки
+     * @return int|null ID новой сделки или null при ошибке
+     */
+    private function createLeadCopy($originalLead, $targetStageId): ?int
+    {
         try {
             // Подготавливаем данные для новой сделки
             $newLeadData = [
@@ -234,7 +263,7 @@ class CopyLeadsHandler extends BaseHandler
                 }
             }
             
-            // Создаем сделку
+            // Создаем сделку через API
             $response = $this->amoClient->POST('leads', [$newLeadData]);
             
             if (!empty($response) && isset($response['_embedded']['leads'][0]['id'])) {
@@ -249,7 +278,12 @@ class CopyLeadsHandler extends BaseHandler
         }
     }
     
-    private function copyNotesToNewLead($notes, $newLeadId) {
+    /**
+     * Копирует примечания в новую сделку
+     * @return int Количество успешно скопированных примечаний
+     */
+    private function copyNotesToNewLead($notes, $newLeadId): int
+    {
         $copiedCount = 0;
         
         foreach ($notes as $note) {
@@ -279,13 +313,18 @@ class CopyLeadsHandler extends BaseHandler
                 error_log("Error copying note to lead {$newLeadId}: " . $e->getMessage());
             }
             
-            usleep(100000);
+            usleep(100000); // 100ms пауза
         }
         
         return $copiedCount;
     }
     
-    private function copyTasksToNewLead($tasks, $newLeadId) {
+    /**
+     * Копирует задачи в новую сделку
+     * @return int Количество успешно скопированных задач
+     */
+    private function copyTasksToNewLead($tasks, $newLeadId): int
+    {
         $copiedCount = 0;
         
         foreach ($tasks as $task) {
@@ -315,7 +354,7 @@ class CopyLeadsHandler extends BaseHandler
                 error_log("Error copying task to lead {$newLeadId}: " . $e->getMessage());
             }
             
-            usleep(100000);
+            usleep(100000); // 100ms пауза
         }
         
         return $copiedCount;

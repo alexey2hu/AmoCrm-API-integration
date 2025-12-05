@@ -30,10 +30,10 @@
 					<div class="requirements">
 						<h4><i class="fas fa-filter"></i> Критерии:</h4>
 						<ul>
-							<li>Стадия: <strong>Заявка</strong> (ID: 81971238)</li>
+							<li>Стадия: <strong>Заявка</strong></li>
 							<li>Бюджет: <strong>> 5000</strong></li>
 							<li>
-								Перемещение на: <strong>Ожидание клиента</strong> (ID: 81971194)
+								Перемещение на: <strong>Ожидание клиента</strong>
 							</li>
 						</ul>
 					</div>
@@ -54,13 +54,11 @@
 						<h4><i class="fas fa-filter"></i> Критерии:</h4>
 						<ul>
 							<li>
-								Стадия: <strong>Клиент подтвердил</strong> (ID:
-								<span id="confirmed-stage-id">?</span>)
+								Стадия: <strong>Клиент подтвердил</strong>
 							</li>
 							<li>Бюджет: <strong>= 4999</strong> (точно)</li>
 							<li>
-								Копия создается на: <strong>Ожидание клиента</strong> (ID:
-								81971194)
+								Копия создается на: <strong>Ожидание клиента</strong>
 							</li>
 							<li>Копируются: примечания и задачи</li>
 						</ul>

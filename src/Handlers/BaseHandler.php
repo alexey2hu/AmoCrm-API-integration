@@ -16,10 +16,10 @@ abstract class BaseHandler
         // Загружаем конфигурацию
         $this->config = Config::getLegacyConfig();
         
-        // Проверяем обязательные поля
+        // Проверяем обязательные поля конфигурации
         $this->validateConfig();
         
-        // Создаем клиент AmoCRM
+        // Создаем клиент для работы с AmoCRM API
         $this->amoClient = new AmoCrmV4Client(
             $this->config['sub_domain'],
             $this->config['client_id'],
@@ -28,12 +28,13 @@ abstract class BaseHandler
             $this->config['redirect_url']
         );
         
-        // Устанавливаем режим отладки из конфига
+        // Включаем режим отладки, если указан в конфиге
         $this->debugMode = $this->config['debug_mode'] ?? false;
     }
     
     /**
      * Проверяет обязательные поля конфигурации
+     * @throws \RuntimeException если отсутствует обязательное поле
      */
     protected function validateConfig(): void
     {
@@ -48,6 +49,7 @@ abstract class BaseHandler
     
     /**
      * Получает параметры обработки из конфига
+     * Возвращает настройки для фильтрации и обработки сделок
      */
     protected function getProcessingParameters(): array
     {
@@ -65,6 +67,7 @@ abstract class BaseHandler
     
     /**
      * Извлекает бюджет из данных сделки
+     * Ищет значение бюджета в основном поле price или кастомных полях
      */
     protected function extractBudgetFromLead(array $lead): float
     {
@@ -73,7 +76,7 @@ abstract class BaseHandler
             return (float)$lead['price'];
         }
         
-        // 2. Кастомные поля
+        // 2. Поиск в кастомных полях по ключевым словам
         if (isset($lead['custom_fields_values'])) {
             foreach ($lead['custom_fields_values'] as $field) {
                 $fieldName = strtolower($field['field_name'] ?? '');
@@ -104,7 +107,7 @@ abstract class BaseHandler
     }
     
     /**
-     * Создает структурированный ответ
+     * Создает структурированный ответ для контроллера
      */
     protected function createResponse(bool $success, string $message, array $data = []): array
     {
