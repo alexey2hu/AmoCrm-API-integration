@@ -17,7 +17,8 @@ class AmoCrmV4Client
 
     var $access_token = "";
 
-    var $token_file = "TOKEN.txt";
+    var $token_file = "";
+    var $error_log_file = "";
 
     function __construct($subDomain, $client_id, $client_secret, $code, $redirect_uri)
     {
@@ -27,8 +28,19 @@ class AmoCrmV4Client
         $this->code = $code;
         $this->redirect_uri = $redirect_uri;
         
+        // Определяем корень проекта (поднимаемся на 2 уровня вверх от src/Clients/)
+        $projectRoot = dirname(__DIR__, 2);
+        
+        // Устанавливаем правильные пути
+        $this->token_file = $projectRoot . '/storage/TOKEN.txt';
+        $this->error_log_file = $projectRoot . '/storage/ERROR_LOG.txt';
+        
+        // Создаем директории если не существуют
+        $this->ensureDirectoryExists(dirname($this->token_file));
+        $this->ensureDirectoryExists(dirname($this->error_log_file));
+        
         if(file_exists($this->token_file)) {
-            $tokenData = json_decode(file_get_contents("TOKEN.txt"), true);
+            $tokenData = json_decode(file_get_contents($this->token_file), true);
             if($tokenData['expires_in'] < time()) {
                 $this->GetToken(true);
             } else {
@@ -38,13 +50,22 @@ class AmoCrmV4Client
             $this->GetToken();
         }
     }
+    
+    /**
+     * Создает директорию если она не существует
+     */
+    private function ensureDirectoryExists($dir) {
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+    }
 
     function GetToken($refresh = false){
         $link = 'https://' . $this->subDomain . '.amocrm.ru/oauth2/access_token';
 
         /** Соберем данные для запроса */
         if($refresh) {
-            $tokenData = json_decode(file_get_contents("TOKEN.txt"), true);
+            $tokenData = json_decode(file_get_contents($this->token_file), true);
             $data = [
                 'client_id' => $this->client_id,
                 'client_secret' => $this->client_secret,
@@ -70,7 +91,7 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_HEADER, false);
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($curl,CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // для тестового убрал, на реальном сделал бы проверку на ssl
         curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
         $out = curl_exec($curl);
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -107,7 +128,7 @@ class AmoCrmV4Client
             'expires_in' => time() + $response['expires_in']
         ];
 
-        file_put_contents("TOKEN.txt", json_encode($token));
+        file_put_contents($this->token_file, json_encode($token));
     }
 
     function CurlRequest($link, $method, $PostFields = [])
@@ -127,7 +148,7 @@ class AmoCrmV4Client
         curl_setopt($curl,CURLOPT_CUSTOMREQUEST,$method);
         curl_setopt($curl,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl,CURLOPT_HEADER, false);
-        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($curl,CURLOPT_SSL_VERIFYPEER, 0); // для тестового убрал, на реальном сделал бы проверку на ssl
         curl_setopt($curl,CURLOPT_SSL_VERIFYHOST, 0);
         $out = curl_exec($curl);
         $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -258,7 +279,7 @@ class AmoCrmV4Client
 
     function Error($e){
         $logMessage = date('Y-m-d H:i:s') . ' - ' . $e . PHP_EOL;
-        file_put_contents("ERROR_LOG.txt", $logMessage, FILE_APPEND);
+        file_put_contents($this->error_log_file, $logMessage, FILE_APPEND);
         error_log($logMessage);
     }
 }

@@ -2,96 +2,42 @@
 
 namespace App\Handlers;
 
-use App\Clients\AmoCrmV4Client;
-
-class CopyLeadsHandler {
-    private $amoClient;
-    private $config;
-    private $debugMode = false; // Режим отладки
-    
-    public function __construct() {
-        // Загружаем конфигурацию
-        $this->config = require __DIR__ . '/../Config/data.php';
-        
-        // Проверяем что $config - массив
-        if (!is_array($this->config)) {
-            throw new \RuntimeException('Configuration file must return an array');
-        }
-        
-        // Проверяем обязательные поля
-        $required = ['sub_domain', 'client_id', 'client_secret', 'code', 'redirect_url', 'pipeline_id'];
-        foreach ($required as $field) {
-            if (!isset($this->config[$field])) {
-                throw new \RuntimeException("Missing required config field: {$field}");
-            }
-        }
-        
-        // Создаем клиент AmoCRM
-        $this->amoClient = new AmoCrmV4Client(
-            $this->config['sub_domain'],
-            $this->config['client_id'],
-            $this->config['client_secret'],
-            $this->config['code'],
-            $this->config['redirect_url']
-        );
-        
-        // Включаем отладку если есть параметр debug
-        $this->debugMode = isset($_GET['debug']) || isset($_POST['debug']);
-    }
-    
+class CopyLeadsHandler extends BaseHandler
+{
     /**
      * Основной метод обработки
-     * Копирует сделки на стадии "Клиент подтвердил" с бюджетом = 4999
      */
-    public function handle() {
+    public function handle(): array
+    {
         try {
             // 1. Получаем параметры
             $params = $this->getProcessingParameters();
             
-            if ($this->debugMode) {
-                echo "<pre>=== НАЧАЛО ОБРАБОТКИ ===\n";
-                echo "Параметры: " . print_r($params, true) . "</pre>";
-            }
-            
             // 2. Проверяем обязательные параметры
             $this->validateParameters($params);
             
-            // 3. Получаем сделки на стадии "Клиент подтвердил" с бюджетом = 4999
-            $leads = $this->getLeadsOnClientConfirmedStage($params);
-            
-            if ($this->debugMode) {
-                echo "<pre>Найдено сделок на стадии 'Клиент подтвердил': " . count($leads) . "</pre>";
-            }
+            // 3. Получаем сделки для копирования
+            $leadsData = $this->getLeadsToCopy($params);
+            $leads = $leadsData['leads']; // Извлекаем сделки
+            $totalLeadsOnStage = $leadsData['total_leads_on_stage']; // Извлекаем общее количество
             
             if (empty($leads)) {
-                return $this->createResponse(false, 'Не найдено сделок на стадии "Клиент подтвердил" с бюджетом = ' . $params['copy_budget_value'], [
-                    'total_leads' => 0,
+                return $this->createResponse(false, 'Не найдено сделок для копирования', [
+                    'total_leads' => $totalLeadsOnStage, // Все сделки на этапе
+                    'filtered_leads' => 0, // Сделки с бюджетом = 4999
                     'copied_count' => 0,
                     'parameters' => $params
                 ]);
             }
             
-            if ($this->debugMode) {
-                echo "<pre>=== НАЙДЕННЫЕ СДЕЛКИ ===\n";
-                foreach ($leads as $lead) {
-                    echo "ID: {$lead['id']}, Название: {$lead['name']}, Бюджет: {$lead['budget']}\n";
-                }
-                echo "=== НАЧИНАЕМ КОПИРОВАНИЕ ===</pre>";
-            }
-            
             // 4. Копируем найденные сделки
             $copyResults = $this->copyLeadsWithNotesAndTasks($leads, $params);
             
-            if ($this->debugMode) {
-                echo "<pre>=== РЕЗУЛЬТАТЫ КОПИРОВАНИЯ ===\n";
-                echo "Успешно скопировано: " . count($copyResults['success']) . "\n";
-                echo "Не удалось скопировать: " . count($copyResults['failed']) . "\n";
-                echo "</pre>";
-            }
-            
             // 5. Формируем ответ
             return $this->createResponse(true, 'Копирование завершено', [
-                'total_leads_found' => count($leads),
+                'total_leads' => $totalLeadsOnStage, // Все сделки на этапе "Клиент подтвердил"
+                'filtered_leads' => count($leads), // Сделки с бюджетом = 4999
+                'total_leads_found' => count($leads), // Для обратной совместимости
                 'successfully_copied' => count($copyResults['success']),
                 'failed_to_copy' => count($copyResults['failed']),
                 'success_copies' => array_slice($copyResults['success'], 0, 5),
@@ -102,261 +48,142 @@ class CopyLeadsHandler {
             
         } catch (\Exception $e) {
             error_log("CopyLeadsHandler error: " . $e->getMessage());
-            return $this->createResponse(false, 'Ошибка обработки: ' . $e->getMessage(), [
-                'error_details' => [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]
-            ]);
+            return $this->createResponse(false, 'Ошибка обработки: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Проверяет обязательные параметры
+     */
+    private function validateParameters(array $params): void
+    {
+        $required = ['client_confirmed_stage_id', 'waiting_stage_id'];
+        
+        foreach ($required as $field) {
+            if (empty($params[$field])) {
+                throw new \RuntimeException("Не указан обязательный параметр: {$field}");
+            }
+        }
+        
+        if ($params['client_confirmed_stage_id'] == $params['waiting_stage_id']) {
+            throw new \RuntimeException("ID исходной и целевой стадий не должны совпадать");
         }
     }
     
     /**
      * Получает название воронки по ID
      */
-    private function getPipelineName($pipelineId) {
-        try {
-            $pipeline = $this->amoClient->GET('leads/pipelines', $pipelineId);
-            return $pipeline['name'] ?? 'Неизвестная воронка';
-        } catch (\Exception $e) {
-            return 'Не удалось получить название воронки';
-        }
-    }
-    
-    /**
-     * Получает параметры обработки
-     */
-    private function getProcessingParameters() {
-			// Параметры по умолчанию из конфига
-			$defaultParams = [
-        'pipeline_id' => $this->config['pipeline_id'],
-        'client_confirmed_stage_id' => $this->config['client_confirmed_stage_id'] ?? null,
-        'waiting_stage_id' => $this->config['waiting_stage_id'] ?? null,
-        'copy_budget_value' => $this->config['copy_budget_value'] ?? 4999,
-        'limit' => 50
-    	];
-			
-			// Параметры из запроса
-			$requestParams = [];
-			if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-					$json = file_get_contents('php://input');
-					if (!empty($json)) {
-							$data = json_decode($json, true);
-							if (json_last_error() === JSON_ERROR_NONE) {
-									$requestParams = $data;
-							}
-					}
-			} else {
-					$requestParams = $_GET;
-			}
-			
-			// Объединяем (параметры запроса имеют приоритет над конфигом)
-			$result = array_merge($defaultParams, $requestParams);
-			
-			return $result;
-	}
-    
-    /**
-     * Проверяет обязательные параметры
-     */
-    /**
- * Проверяет обязательные параметры
- */
-	private function validateParameters($params) {
-		$required = ['client_confirmed_stage_id'];
-		
-		foreach ($required as $field) {
-				if (empty($params[$field])) {
-						throw new \RuntimeException("Не указан обязательный параметр: {$field}. Проверьте конфиг или передайте в запросе.");
-				}
-		}
-		
-		// Проверяем что waiting_stage_id существует
-		if (empty($params['waiting_stage_id'])) {
-				throw new \RuntimeException("Не указан параметр: waiting_stage_id. Проверьте конфиг.");
-		}
-		
-		// Проверяем что стадии не совпадают
-		$targetStageId = $params['waiting_stage_id']; // используем waiting_stage_id как целевую
-		if ($params['client_confirmed_stage_id'] == $targetStageId) {
-				throw new \RuntimeException("ID исходной и целевой стадий не должны совпадать");
-		}
-		
-		if ($this->debugMode) {
-				echo "<pre>=== ПРОВЕРКА ПАРАМЕТРОВ ===\n";
-				echo "Pipeline ID: {$params['pipeline_id']}\n";
-				echo "Стадия 'Клиент подтвердил': {$params['client_confirmed_stage_id']}\n";
-				echo "Стадия для копирования (waiting_stage_id): {$params['waiting_stage_id']}\n";
-				echo "Бюджет для фильтрации: {$params['copy_budget_value']}\n";
-				echo "========================</pre>";
-		}
-	}
-    
-    /**
-     * Получает сделки на стадии "Клиент подтвердил" с бюджетом = 4999
-     */
-    private function getLeadsOnClientConfirmedStage($params) {
+    private function getPipelineName(int $pipelineId): string
+		{
 			try {
-					$queryParams = [
-							'limit' => $params['limit'],
-							'with' => 'contacts,custom_fields',
-							'filter[status_id][]' => (int)$params['client_confirmed_stage_id'],
-							'filter[pipeline_id][]' => (int)$params['pipeline_id']
-					];
+					// В GET должен быть только endpoint, без ID в параметрах
+					$pipelines = $this->amoClient->GET('leads/pipelines');
 					
-					$allLeads = $this->amoClient->GETAll('leads', $queryParams);
-					
-					// ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА КАК В MoveLeadsHandler
-					$verifiedLeads = [];
-					foreach ($allLeads as $lead) {
-							// Проверяем и стадию И воронку
-							if (($lead['status_id'] ?? null) == $params['client_confirmed_stage_id'] 
-									&& ($lead['pipeline_id'] ?? null) == $params['pipeline_id']) {
-									
-									$budget = $this->extractBudgetFromLead($lead);
-									
-									if (abs($budget - $params['copy_budget_value']) < 0.01) {
-											$verifiedLeads[] = [
-													'id' => $lead['id'],
-													'name' => $lead['name'] ?? 'Без названия',
-													'budget' => $budget,
-													'status_id' => $lead['status_id'],
-													'pipeline_id' => $lead['pipeline_id'],
-													'original_data' => $lead
-											];
+					if (!empty($pipelines['_embedded']['pipelines'])) {
+							foreach ($pipelines['_embedded']['pipelines'] as $pipeline) {
+									if ($pipeline['id'] == $pipelineId) {
+											return $pipeline['name'];
 									}
 							}
 					}
 					
-					return $verifiedLeads;
+					return 'Неизвестная воронка (ID: ' . $pipelineId . ')';
 			} catch (\Exception $e) {
-					return [];
+					return 'Не удалось получить название воронки: ' . $e->getMessage();
 			}
-	}
+		}
     
-	/**
-	 * Извлекает бюджет из данных сделки
-	 */
-	private function extractBudgetFromLead($lead) {
-			// 1. Основное поле 'price'
-			if (isset($lead['price']) && is_numeric($lead['price'])) {
-					return (float)$lead['price'];
-			}
-			
-			// 2. Кастомные поля
-			if (isset($lead['custom_fields_values'])) {
-					foreach ($lead['custom_fields_values'] as $field) {
-							$fieldName = strtolower($field['field_name'] ?? '');
-							$fieldCode = strtolower($field['field_code'] ?? '');
-							
-							$budgetFieldPatterns = [
-									'/бюджет/i',
-									'/стоимость/i', 
-									'/цена/i',
-									'/сумма/i',
-									'/price/i',
-									'/budget/i',
-									'/cost/i',
-									'/amount/i'
-							];
-							
-							foreach ($budgetFieldPatterns as $pattern) {
-									if (preg_match($pattern, $fieldName) || preg_match($pattern, $fieldCode)) {
-											if (isset($field['values'][0]['value']) && is_numeric($field['values'][0]['value'])) {
-													return (float)$field['values'][0]['value'];
-											}
-									}
-							}
-					}
-			}
-			
-			return 0;
-    }
+        /**
+         * Получает сделки для копирования
+         */
+        private function getLeadsToCopy(array $params): array
+        {
+            $queryParams = [
+                'limit' => $params['limit'],
+                'with' => 'contacts,custom_fields',
+                'filter[status_id][]' => (int)$params['client_confirmed_stage_id'],
+                'filter[pipeline_id][]' => (int)$params['pipeline_id']
+            ];
+            
+            $allLeads = $this->amoClient->GETAll('leads', $queryParams);
+            
+            $totalLeadsOnStage = 0;
+            $leadsToCopy = [];
+            
+            foreach ($allLeads as $lead) {
+                // Проверяем стадию и воронку
+                if (($lead['status_id'] ?? null) == $params['client_confirmed_stage_id'] 
+                    && ($lead['pipeline_id'] ?? null) == $params['pipeline_id']) {
+                    
+                    $totalLeadsOnStage++; // Считаем ВСЕ сделки на этапе "Клиент подтвердил"
+                    $budget = $this->extractBudgetFromLead($lead);
+                    
+                    // Проверяем бюджет на точное совпадение
+                    if (abs($budget - $params['copy_budget_value']) < 0.01) {
+                        $leadsToCopy[] = [
+                            'id' => $lead['id'],
+                            'name' => $lead['name'] ?? 'Без названия',
+                            'budget' => $budget,
+                            'original_data' => $lead
+                        ];
+                    }
+                }
+            }
+            
+            // Возвращаем массив с обеими переменными
+            return [
+                'leads' => $leadsToCopy,
+                'total_leads_on_stage' => $totalLeadsOnStage
+            ];
+        }
     
     /**
      * Копирует сделки с примечаниями и задачами
      */
-    private function copyLeadsWithNotesAndTasks($leads, $params) {
-			$result = [
-        'success' => [],
-        'failed' => []
-    ];
-    
-    foreach ($leads as $index => $lead) {
-        if ($this->debugMode) {
-            echo "<pre>=== КОПИРОВАНИЕ СДЕЛКИ " . ($index + 1) . "/" . count($leads) . " ===\n";
-            echo "ID: {$lead['id']}, Название: {$lead['name']}\n";
+    private function copyLeadsWithNotesAndTasks(array $leads, array $params): array
+    {
+        $result = [
+            'success' => [],
+            'failed' => []
+        ];
+        
+        foreach ($leads as $lead) {
+            try {
+                // 1. Создаем копию сделки
+                $newLeadId = $this->createLeadCopy($lead['original_data'], $params['waiting_stage_id']);
+                
+                if (!$newLeadId) {
+                    throw new \Exception('Не удалось создать копию сделки');
+                }
+                
+                // 2. Копируем примечания
+                $notes = $this->getLeadNotes($lead['id']);
+                $copiedNotes = $this->copyNotesToNewLead($notes, $newLeadId);
+                
+                // 3. Копируем задачи
+                $tasks = $this->getLeadTasks($lead['id']);
+                $copiedTasks = $this->copyTasksToNewLead($tasks, $newLeadId);
+                
+                $result['success'][] = [
+                    'original_lead_id' => $lead['id'],
+                    'new_lead_id' => $newLeadId,
+                    'notes_copied' => $copiedNotes,
+                    'tasks_copied' => $copiedTasks
+                ];
+                
+            } catch (\Exception $e) {
+                $result['failed'][] = [
+                    'original_lead_id' => $lead['id'],
+                    'error' => $e->getMessage()
+                ];
+            }
+            
+            usleep(500000); // 500ms пауза
         }
         
-        try {
-							// a) Получаем полные данные сделки
-							if ($this->debugMode) echo "1. Получаем полные данные сделки...\n";
-							$fullLead = $this->amoClient->GET('leads', $lead['id']);
-							
-							// b) Получаем примечания сделки
-							if ($this->debugMode) echo "2. Получаем примечания...\n";
-							$notes = $this->getLeadNotes($lead['id']);
-							if ($this->debugMode) echo "   Найдено примечаний: " . count($notes) . "\n";
-							
-							// c) Получаем задачи сделки
-							if ($this->debugMode) echo "3. Получаем задачи...\n";
-							$tasks = $this->getLeadTasks($lead['id']);
-							if ($this->debugMode) echo "   Найдено задач: " . count($tasks) . "\n";
-							
-							// d) Создаем копию сделки на новой стадии
-							if ($this->debugMode) echo "4. Создаем копию сделки...\n";
-            	$newLeadId = $this->createLeadCopy($fullLead, $params['waiting_stage_id']);
-							
-							if (!$newLeadId) {
-									throw new \Exception('Не удалось создать копию сделки');
-							}
-							
-							if ($this->debugMode) echo "   Создана копия ID: {$newLeadId}\n";
-							
-							// e) Копируем примечания
-							if ($this->debugMode) echo "5. Копируем примечания...\n";
-							$copiedNotes = $this->copyNotesToNewLead($notes, $newLeadId);
-							if ($this->debugMode) echo "   Скопировано примечаний: {$copiedNotes}\n";
-							
-							// f) Копируем задачи
-							if ($this->debugMode) echo "6. Копируем задачи...\n";
-							$copiedTasks = $this->copyTasksToNewLead($tasks, $newLeadId);
-							if ($this->debugMode) echo "   Скопировано задач: {$copiedTasks}\n";
-							
-							$result['success'][] = [
-									'original_lead_id' => $lead['id'],
-									'original_lead_name' => $lead['name'],
-									'new_lead_id' => $newLeadId,
-									'notes_copied' => $copiedNotes,
-									'tasks_copied' => $copiedTasks,
-									'budget' => $lead['budget']
-							];
-							
-							if ($this->debugMode) echo "✓ Успешно скопировано\n";
-							
-					} catch (\Exception $e) {
-							$result['failed'][] = [
-									'original_lead_id' => $lead['id'],
-									'original_lead_name' => $lead['name'],
-									'error' => $e->getMessage(),
-									'budget' => $lead['budget']
-							];
-							
-							if ($this->debugMode) echo "✗ Ошибка: " . $e->getMessage() . "\n";
-					}
-					
-					if ($this->debugMode) {
-							echo "=====================</pre>";
-					}
-					
-					// Пауза между операциями
-					usleep(500000); // 500ms
-			}
-			
-			return $result;
+        return $result;
     }
     
-    // Остальные методы остаются без изменений...
     private function getLeadNotes($leadId) {
         try {
             $notes = $this->amoClient->GETAll("leads/{$leadId}/notes");
@@ -492,17 +319,5 @@ class CopyLeadsHandler {
         }
         
         return $copiedCount;
-    }
-    
-    /**
-     * Создает структурированный ответ
-     */
-    private function createResponse($success, $message, $data = []) {
-        return [
-            'success' => $success,
-            'message' => $message,
-            'timestamp' => date('Y-m-d H:i:s'),
-            'data' => $data
-        ];
     }
 }

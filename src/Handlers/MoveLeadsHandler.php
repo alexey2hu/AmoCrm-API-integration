@@ -1,46 +1,14 @@
 <?php
-// src/Handlers/MoveLeadsHandler.php - ИСПРАВЛЕННАЯ ВЕРСИЯ
+
 namespace App\Handlers;
 
-use App\Clients\AmoCrmV4Client;
-
-class MoveLeadsHandler {
-    private $amoClient;
-    private $config;
-    
-    public function __construct() {
-        // Загружаем конфигурацию
-        $this->config = require __DIR__ . '/../Config/data.php';
-        
-        // Проверяем что $config - массив
-        if (!is_array($this->config)) {
-            throw new \RuntimeException('Configuration file must return an array');
-        }
-        
-        // Проверяем обязательные поля
-        $required = ['sub_domain', 'client_id', 'client_secret', 'code', 'redirect_url', 'pipeline_id'];
-        foreach ($required as $field) {
-            if (!isset($this->config[$field])) {
-                throw new \RuntimeException("Missing required config field: {$field}");
-            }
-        }
-        
-        // Создаем клиент AmoCRM
-        $this->amoClient = new AmoCrmV4Client(
-            $this->config['sub_domain'],
-            $this->config['client_id'],
-            $this->config['client_secret'],
-            $this->config['code'],
-            $this->config['redirect_url']
-        );
-    }
-    
+class MoveLeadsHandler extends BaseHandler
+{
     /**
      * Основной метод обработки
-     * Находит сделки ТОЛЬКО на этапе "Заявка" с бюджетом > 5000 
-     * и перемещает их на этап "Ожидание клиента"
      */
-    public function handle() {
+    public function handle(): array
+    {
         try {
             // 1. Получаем параметры
             $params = $this->getProcessingParameters();
@@ -48,7 +16,7 @@ class MoveLeadsHandler {
             // 2. Проверяем обязательные параметры
             $this->validateParameters($params);
             
-            // 3. Получаем ВСЕ сделки на стадии "Заявка"
+            // 3. Получаем сделки на стадии "Заявка"
             $leads = $this->getLeadsOnApplicationStage($params);
             
             if (empty($leads)) {
@@ -59,11 +27,11 @@ class MoveLeadsHandler {
                 ]);
             }
             
-            // 4. Фильтруем сделки по бюджету (> 5000)
+            // 4. Фильтруем по бюджету
             $filteredLeads = $this->filterLeadsByBudget($leads, $params['budget_threshold']);
             
             if (empty($filteredLeads)) {
-                return $this->createResponse(false, 'Не найдено сделок на стадии "Заявка" с бюджетом > ' . $params['budget_threshold'], [
+                return $this->createResponse(false, 'Не найдено сделок с бюджетом > ' . $params['budget_threshold'], [
                     'total_leads' => count($leads),
                     'filtered_leads' => 0,
                     'moved_count' => 0,
@@ -71,73 +39,32 @@ class MoveLeadsHandler {
                 ]);
             }
             
-            // 5. Перемещаем ОТФИЛЬТРОВАННЫЕ сделки на стадию "Ожидание клиента"
-            $movedLeads = $this->moveFilteredLeads($filteredLeads, $params);
+            // 5. Перемещаем сделки (ИСПРАВЛЕНО: правильное имя метода)
+            $moveResults = $this->moveFilteredLeads($filteredLeads, $params);
             
-            // 6. Формируем успешный ответ
-            return $this->createResponse(true, 'Обработка завершена успешно', [
-                'total_leads_on_application_stage' => count($leads),
-                'leads_with_budget_over_threshold' => count($filteredLeads),
-                'successfully_moved' => count($movedLeads['success']),
-                'failed_to_move' => count($movedLeads['failed']),
-                'success_leads' => array_slice($movedLeads['success'], 0, 10),
-                'failed_leads' => array_slice($movedLeads['failed'], 0, 10),
+            return $this->createResponse(true, 'Перемещение завершено', [
+                'total_leads' => count($leads), // Все сделки на стадии "Заявка"
+                'filtered_leads' => count($filteredLeads), // Сделки с бюджетом > порога
+                'successfully_moved' => count($moveResults['success']),
+                'failed_to_move' => count($moveResults['failed']),
+                'success_leads' => array_slice($moveResults['success'], 0, 10),
+                'failed_leads' => array_slice($moveResults['failed'], 0, 10),
                 'parameters' => $params
             ]);
             
         } catch (\Exception $e) {
             error_log("MoveLeadsHandler error: " . $e->getMessage());
-            return $this->createResponse(false, 'Ошибка обработки: ' . $e->getMessage(), [
-                'error_details' => [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]
-            ]);
+            return $this->createResponse(false, 'Ошибка обработки: ' . $e->getMessage());
         }
-    }
-    
-    /**
-     * Получает параметры обработки (из конфига или запроса)
-     */
-    private function getProcessingParameters() {
-        // Берем параметры по умолчанию из конфига
-        $defaultParams = [
-            'pipeline_id' => $this->config['pipeline_id'],
-            'application_stage_id' => $this->config['application_stage_id'] ?? null,
-            'waiting_stage_id' => $this->config['waiting_stage_id'] ?? null,
-            'budget_threshold' => $this->config['budget_threshold'] ?? 5000,
-            'limit' => 250
-        ];
-        
-        // Пробуем получить параметры из запроса
-        $requestParams = [];
-        
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $json = file_get_contents('php://input');
-            if (!empty($json)) {
-                $data = json_decode($json, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $requestParams = $data;
-                }
-            }
-        } else {
-            $requestParams = $_GET;
-        }
-        
-        // Объединяем (параметры запроса имеют приоритет над конфигом)
-        return array_merge($defaultParams, $requestParams);
     }
     
     /**
      * Проверяет обязательные параметры
      */
-    private function validateParameters($params) {
-        $required = ['application_stage_id', 'waiting_stage_id'];
-        
-        foreach ($required as $field) {
-            if (empty($params[$field])) {
-                throw new \RuntimeException("Не указан обязательный параметр: {$field}. Проверьте конфиг или передайте в запросе.");
-            }
+    private function validateParameters(array $params): void
+    {
+        if (empty($params['application_stage_id']) || empty($params['waiting_stage_id'])) {
+            throw new \RuntimeException("Не указаны обязательные параметры стадий");
         }
         
         if ($params['application_stage_id'] == $params['waiting_stage_id']) {
@@ -148,7 +75,8 @@ class MoveLeadsHandler {
     /**
      * Получает ВСЕ сделки на стадии "Заявка"
      */
-    private function getLeadsOnApplicationStage($params) {
+    private function getLeadsOnApplicationStage(array $params): array
+    {
         try {
             // Формируем запрос ТОЛЬКО для стадии "Заявка"
             $queryParams = [
@@ -180,7 +108,8 @@ class MoveLeadsHandler {
      * Фильтрует сделки по бюджету
      * Возвращает только те, у которых бюджет > threshold
      */
-    private function filterLeadsByBudget($leads, $budgetThreshold) {
+    private function filterLeadsByBudget(array $leads, float $budgetThreshold): array
+    {
         $filtered = [];
         
         foreach ($leads as $lead) {
@@ -202,49 +131,10 @@ class MoveLeadsHandler {
     }
     
     /**
-     * Извлекает бюджет из данных сделки
-     */
-    private function extractBudgetFromLead($lead) {
-        // 1. Основное поле 'price' (самый вероятный вариант)
-        if (isset($lead['price']) && is_numeric($lead['price'])) {
-            return (float)$lead['price'];
-        }
-        
-        // 2. Кастомные поля
-        if (isset($lead['custom_fields_values'])) {
-            foreach ($lead['custom_fields_values'] as $field) {
-                $fieldName = strtolower($field['field_name'] ?? '');
-                $fieldCode = strtolower($field['field_code'] ?? '');
-                
-                // Расширенный список названий для бюджета
-                $budgetFieldPatterns = [
-                    '/бюджет/i',
-                    '/стоимость/i', 
-                    '/цена/i',
-                    '/сумма/i',
-                    '/price/i',
-                    '/budget/i',
-                    '/cost/i',
-                    '/amount/i'
-                ];
-                
-                foreach ($budgetFieldPatterns as $pattern) {
-                    if (preg_match($pattern, $fieldName) || preg_match($pattern, $fieldCode)) {
-                        if (isset($field['values'][0]['value']) && is_numeric($field['values'][0]['value'])) {
-                            return (float)$field['values'][0]['value'];
-                        }
-                    }
-                }
-            }
-        }
-        
-        return 0;
-    }
-    
-    /**
      * Перемещает отфильтрованные сделки на стадию "Ожидание клиента"
      */
-    private function moveFilteredLeads($leads, $params) {
+    private function moveFilteredLeads(array $leads, array $params): array
+    {
         $result = [
             'success' => [],
             'failed' => []
@@ -307,7 +197,7 @@ class MoveLeadsHandler {
                         'id' => $lead['id'],
                         'name' => $lead['name'],
                         'error' => 'Не удалось обновить сделку',
-                        'response' => $response
+                        'response' => $response ?? 'Пустой ответ'
                     ];
                 }
                 
@@ -325,17 +215,5 @@ class MoveLeadsHandler {
         }
         
         return $result;
-    }
-    
-    /**
-     * Создает структурированный ответ
-     */
-    private function createResponse($success, $message, $data = []) {
-        return [
-            'success' => $success,
-            'message' => $message,
-            'timestamp' => date('Y-m-d H:i:s'),
-            'data' => $data
-        ];
     }
 }

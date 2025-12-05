@@ -1,0 +1,266 @@
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	min-height: 100vh;
+	padding: 20px;
+}
+
+.container {
+	max-width: 1200px;
+	margin: 0 auto;
+	background: white;
+	border-radius: 15px;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+	overflow: hidden;
+}
+
+.header {
+	background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+	color: white;
+	padding: 30px;
+	text-align: center;
+}
+
+.header h1 {
+	font-size: 2.5rem;
+	margin-bottom: 10px;
+}
+
+.header p {
+	font-size: 1.1rem;
+	opacity: 0.9;
+}
+
+.controls {
+	padding: 30px;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 20px;
+}
+
+.card {
+	height: 100%;
+	background: #f8fafc;
+	border-radius: 12px;
+	padding: 25px;
+	border: 2px solid #e2e8f0;
+	transition: all 0.3s ease;
+	display: flex;
+	flex-direction: column;
+}
+
+.card h2 {
+	color: #1e293b;
+	margin-bottom: 15px;
+	font-size: 1.5rem;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.card p {
+	color: #64748b;
+	margin-bottom: 20px;
+	line-height: 1.5;
+}
+
+.requirements {
+	background: #f1f5f9;
+	height: 100%;
+	padding: 15px;
+	border-radius: 8px;
+	margin-bottom: 20px;
+	font-size: 0.9rem;
+}
+
+.card-content {
+	flex: 1;
+}
+
+.card:hover {
+	border-color: #4f46e5;
+	transform: translateY(-5px);
+	box-shadow: 0 10px 25px rgba(79, 70, 229, 0.1);
+}
+
+.card h2 i {
+	font-size: 1.3rem;
+}
+
+.requirements h4 {
+	color: #475569;
+	margin-bottom: 8px;
+	font-size: 0.95rem;
+}
+
+.requirements ul {
+	padding-left: 20px;
+	color: #64748b;
+}
+
+.requirements li {
+	margin-bottom: 5px;
+}
+
+.btn {
+	display: inline-block;
+	padding: 12px 24px;
+	background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+	color: white;
+	border: none;
+	border-radius: 8px;
+	font-size: 1rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	text-decoration: none;
+	text-align: center;
+	width: 100%;
+	margin-top: auto;
+}
+
+.btn:hover {
+	transform: scale(1.05);
+	box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4);
+}
+
+.btn-danger {
+	background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.btn-danger:hover {
+	box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+}
+
+.console {
+	margin: 0 30px 30px;
+	background: #1e293b;
+	color: #f1f5f9;
+	border-radius: 12px;
+	overflow: hidden;
+	height: 400px;
+	display: flex;
+	flex-direction: column;
+}
+
+.console-header {
+	background: #0f172a;
+	padding: 15px 20px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	border-bottom: 1px solid #334155;
+}
+
+.console-header h3 {
+	font-size: 1.1rem;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.console-controls {
+	display: flex;
+	gap: 10px;
+}
+
+.console-btn {
+	padding: 6px 12px;
+	background: #334155;
+	color: #cbd5e1;
+	border: none;
+	border-radius: 6px;
+	font-size: 0.9rem;
+	cursor: pointer;
+	transition: background 0.3s;
+}
+
+.console-btn:hover {
+	background: #475569;
+}
+
+.console-output {
+	flex: 1;
+	padding: 20px;
+	overflow-y: auto;
+	font-family: 'Courier New', monospace;
+	font-size: 0.9rem;
+	line-height: 1.4;
+}
+
+.console-output .success {
+	color: #10b981;
+}
+
+.console-output .error {
+	color: #ef4444;
+}
+
+.console-output .info {
+	color: #3b82f6;
+}
+
+.console-output .warning {
+	color: #f59e0b;
+}
+
+.timestamp {
+	color: #94a3b8;
+	font-size: 0.8rem;
+	margin-right: 10px;
+}
+
+.loading {
+	display: none;
+	text-align: center;
+	padding: 20px;
+	color: #3b82f6;
+}
+
+.loading.active {
+	display: block;
+}
+
+.spinner {
+	border: 3px solid #f3f3f3;
+	border-top: 3px solid #4f46e5;
+	border-radius: 50%;
+	width: 30px;
+	height: 30px;
+	animation: spin 1s linear infinite;
+	margin: 0 auto 10px;
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
+
+.footer {
+	text-align: center;
+	padding: 20px;
+	color: #64748b;
+	font-size: 0.9rem;
+	border-top: 1px solid #e2e8f0;
+}
+
+@media (max-width: 768px) {
+	.controls {
+		grid-template-columns: 1fr;
+	}
+
+	.console {
+		margin: 0 20px 20px;
+		height: 300px;
+	}
+}

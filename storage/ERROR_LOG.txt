@@ -1,0 +1,32 @@
+2025-12-05 00:05:45 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061015/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:06:52 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061015/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:07:37 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061015/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:11:50 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061015/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:17:37 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:17:38 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:20:26 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:20:27 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:22:46 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:22:48 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:23:23 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:23:24 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:33:50 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 00:33:52 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 01:25:51 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061203/tasks?limit=250&with=leads%2Ccontacts&page=1
+2025-12-05 01:25:53 - Ошибка: Not found
+Код ошибки: 404 URL: https://testalexeybyrakov.amocrm.ru/api/v4/leads/36061199/tasks?limit=250&with=leads%2Ccontacts&page=1
